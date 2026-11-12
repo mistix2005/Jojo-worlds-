@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Jojo Worlds: Stand Out Edition</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        #ui {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .panel {
+            background: rgba(0, 0, 0, 0.75);
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 12px 20px;
+            color: #fff;
+            pointer-events: auto;
+            min-width: 220px;
+        }
+        .bar-container {
+            width: 100%;
+            background: #333;
+            height: 14px;
+            border-radius: 7px;
+            overflow: hidden;
+            margin-top: 6px;
+            border: 1px solid #555;
+        }
+        .bar-fill {
+            height: 100%;
+            width: 100%;
+            transition: width 0.1s;
+        }
+        #hp-fill { background: #e74c3c; }
+        #guard-fill { background: #3498db; }
+        .skills-panel {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+            align-self: center;
+            margin-bottom: 10px;
+        }
+        .skill-slot {
+            width: 60px; height: 60px;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #777;
+            border-radius: 10px;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            position: relative;
+        }
+        .skill-slot span {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+        #menu, #victory, #defeat {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 15, 0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 10;
+            color: #fff;
+        }
+        h1 {
+            font-size: 48px;
+            color: #f1c40f;
+            text-shadow: 0 0 20px rgba(241, 196, 15, 0.6);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        p { color: #ccc; font-size: 16px; max-width: 500px; text-align: center; line-height: 1.5; margin-bottom: 30px; }
+        .btn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            border: none;
+            color: white;
+            padding: 14px 35px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        .btn:hover { transform: scale(1.05); background: linear-gradient(135deg, #ff5f4d, #e74c3c); }
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 6px;
+            color: #aaa;
+            font-size: 13px;
+            line-height: 1.4;
+            border: 1px solid #333;
+        }
+    </style>
+    <!-- Подключаем Three.js для 3D графики в стиле Stand Out -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="menu">
+        <h1>Jojo Worlds</h1>
+        <p>Борьба с ДИО в стиле Stand Out и боевой системой JJS. Используй комбо из 4 ударов, пробивай блок, уклоняйся с помощью Тайм-Эрейза и побеждай!</p>
+        <button class="btn" onclick="startGame()">Начать бой</button>
+    </div>
+
+    <div id="victory" style="display:none;">
+        <h1>Победа!</h1>
+        <p>ДИО повержен! Легендарный Джостар преодолел испытание.</p>
+        <button class="btn" onclick="resetGame()">В меню</button>
+    </div>
+
+    <div id="defeat" style="display:none;">
+        <h1>Поражение</h1>
+        <p>Ты пал в бою против вампира...</p>
+        <button class="btn" onclick="resetGame()">Попробовать снова</button>
+    </div>
+
+    <div id="ui" style="display:none;">
+        <div class="hud-top">
+            <div class="panel">
+                <div style="font-weight: bold; color: #f1c40f;">ДЖОСТАР (Игрок)</div>
+                <div style="font-size: 12px; color: #aaa; margin: 2px 0;">King Crimson / Stand Out</div>
+                <div>HP: <span id="hp-val">150</span></div>
+                <div class="bar-container"><div id="hp-fill" class="bar-fill"></div></div>
+                <div style="margin-top: 6px;">Гард / Блок:</div>
+                <div class="bar-container"><div id="guard-fill" class="bar-fill"></div></div>
+            </div>
+            <div class="panel" style="text-align: right;">
+                <div style="font-weight: bold; color: #e74c3c;">ДИО (Босс)</div>
+                <div style="font-size: 12px; color: #aaa; margin: 2px 0;">Vampire Overlord</div>
+                <div>HP Босса: <span id="boss-hp-val">300</span></div>
+                <div class="bar-container"><div id="boss-hp-fill" class="bar-fill" style="background: #e74c3c;"></div></div>
+            </div>
+        </div>
+
+        <div class="skills-panel">
+            <div class="skill-slot">[1] M1<span>Удар</span></div>
+            <div class="skill-slot">[2] Донат<span>Рывок</span></div>
+            <div class="skill-slot">[3] ТаймЭрейз<span>Уклонение</span></div>
+            <div class="skill-slot">[4] Шквал<span>Ультима</span></div>
+            <div class="skill-slot">[F] Блок<span>Защита</span></div>
+        </div>
+
+        <div class="controls-hint">
+            <b>Управление:</b><br>
+            W, A, S, D — Перемещение<br>
+            ЛКМ / [1] — Серия ударов M1 (4 удара с нокбэком)<br>
+            [2] — Удар «Донат» (пробитие и отброс)<br>
+            [3] — Тайм-Эрейз (таймер неуязвимости / уклонения)<br>
+            [4] — Финальный шквал ударов<br>
+            [F] (удержание) — Блок
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, player, boss, clock;
+        let keys = {};
+        let gameActive = false;
+
+        // Состояние игрока
+        const P = {
+            x: 0, z: 0, rot: 0,
+            hp: 150, maxHp: 150,
+            guard: 100, maxGuard: 100,
+            comboStep: 0, comboTimer: 0,
+            stun: 0, block: false,
+            epitaphTimer: 0,
+            vx: 0, vz: 0
+        };
+
+        // Состояние босса (ДИО)
+        const DIO = {
+            x: 0, z: -5, rot: 0,
+            hp: 300, maxHp: 300,
+            state: 'chase', timer: 0,
+            stun: 0, vx: 0, vz: 0
+        };
+
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a24);
+            scene.fog = new THREE.Fog(0x1a1a24, 15, 50);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 7, 10);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Освещение
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 20, 10);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Арена в стиле Stand Out
+            const floorGeo = new THREE.PlaneGeometry(60, 60);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x2c2c38, roughness: 0.8 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Создание моделей персонажей (детальные воксельные блоки / Stand Out стиль)
+            player.mesh = createHeroModel();
+            scene.add(player.mesh);
+
+            boss.mesh = createDioModel();
+            scene.add(boss.mesh);
+
+            clock = new THREE.Clock();
+        }
+
+        // Модель Игрока (Джостар + Stand Out стиль)
+        function createHeroModel() {
+            const group = new THREE.Group();
+            const matBody = new THREE.MeshLambertMaterial({ color: 0x3498db });
+            const matSkin = new THREE.MeshLambertMaterial({ color: 0xd9a77c });
+            const matHair = new THREE.MeshLambertMaterial({ color: 0x4a2e1a });
+
+            // Тело
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1, 0.4), matBody);
+            body.position.y = 1;
+            body.castShadow = true;
+            group.add(body);
+
+            // Голова
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), matSkin);
+            head.position.y = 1.7;
+            head.castShadow = true;
+            group.add(head);
+
+            // Волосы (французский кроп / детализация)
+            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.25, 0.64), matHair);
+            hair.position.set(0, 1.95, -0.05);
+            group.add(hair);
+
+            return group;
+        }
+
+        // Модель ДИО (Босс)
+        function createDioModel() {
+            const group = new THREE.Group();
+            const matBody = new THREE.MeshLambertMaterial({ color: 0xf1c40f }); // Желтый костюм ДИО
+            const matSkin = new THREE.MeshLambertMaterial({ color: 0xe0ac69 });
+            const matHair = new THREE.MeshLambertMaterial({ color: 0xf39c12 });
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.05, 0.45), matBody);
+            body.position.y = 1;
+            group.add(body);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), matSkin);
+            head.position.y = 1.7;
+            group.add(head);
+
+            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.3, 0.65), matHair);
+            hair.position.set(0, 1.95, 0);
+            group.add(hair);
+
+            return group;
+        }
+
+        // Инициализация объектов игрока и босса
+        player = P;
+        boss = DIO;
+
+        function startGame() {
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('ui').style.display = 'flex';
+            if (!scene) init3D();
+            
+            // Сброс параметров
+            P.hp = P.maxHp; P.guard = P.maxGuard; P.stun = 0; P.x = 0; P.z = 2;
+            DIO.hp = DIO.maxHp; DIO.stun = 0; DIO.x = 0; DIO.z = -4; DIO.state = 'chase';
+            
+            gameActive = true;
+            animate();
+        }
+
+        function resetGame() {
+            document.getElementById('victory').style.display = 'none';
+            document.getElementById('defeat').style.display = 'none';
+            document.getElementById('menu').style.display = 'flex';
+            document.getElementById('ui').style.display = 'none';
+            gameActive = false;
+        }
+
+        // Управление с клавиатуры
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (!gameActive) return;
+
+            // Комбо M1 удары (клавиша 1 или ЛКМ)
+            if (e.code === 'Digit1' || e.code === 'KeyN') {
+                performM1();
+            }
+            // Скилл 2: Донат (пробивной удар с отбросом)
+            if (e.code === 'Digit2') {
+                performDonut();
+            }
+            // Скилл 3: Тайм-Эрейз (активное уклонение на несколько секунд)
+            if (e.code === 'Digit3') {
+                performTimeErase();
+            }
+            // Скилл 4: Финальный шквал
+            if (e.code === 'Digit4') {
+                performBarrage();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // --- БОЕВАЯ СИСТЕМА (JJS Style) ---
+
+        function performM1() {
+            if (P.stun > 0) return;
+
+            // Сброс комбо, если прошло много времени
+            if (P.comboTimer <= 0) P.comboStep = 0;
+
+            P.comboStep = (P.comboStep % 4) + 1;
+            P.comboTimer = 0.8; // окне для следующего удара
+
+            // Проверка дистанции до ДИО
+            const dist = Math.hypot(P.x - DIO.x, P.z - DIO.z);
+            if (dist < 2.5) {
+                if (P.comboStep < 4) {
+                    // Первые 3 удара: стан на месте
+                    DIO.stun = 0.4;
+                    DIO.hp -= 12;
+                    createHitEffect(DIO.x, DIO.z, '#3498db');
+                } else {
+                    // 4-й удар: мощный нокбэк в полёт
+                    DIO.stun = 0.9;
+                    DIO.hp -= 25;
+                    const angle = Math.atan2(DIO.z - P.z, DIO.x - P.x);
+                    DIO.vx = Math.cos(angle) * 12;
+                    DIO.vz = Math.sin(angle) * 12;
+                    createHitEffect(DIO.x, DIO.z, '#e74c3c');
+                }
+            }
+        }
+
+        function performDonut() {
+            if (P.stun > 0) return;
+            const dist = Math.hypot(P.x - DIO.x, P.z - DIO.z);
+            if (dist < 3) {
+                DIO.stun = 1.2;
+                DIO.hp -= 45;
+                const angle = Math.atan2(DIO.z - P.z, DIO.x - P.x);
+                DIO.vx = Math.cos(angle) * 18; // мощный отброс
+                DIO.vz = Math.sin(angle) * 18;
+                createHitEffect(DIO.x, DIO.z, '#f1c40f');
+            }
+        }
+
+        function performTimeErase() {
+            if (P.stun > 0) return;
+            // Таймерный режим уклонения / неуязвимости на 3 секунды
+            P.epitaphTimer = 3.0;
+        }
+
+        function performBarrage() {
+            if (P.stun > 0) return;
+            const dist = Math.hypot(P.x - DIO.x, P.z - DIO.z);
+            if (dist < 3.5) {
+                DIO.stun = 1.8;
+                DIO.hp -= 65;
+                createHitEffect(DIO.x, DIO.z, '#9b59b6');
+            }
+        }
+
+        function createHitEffect(x, z, color) {
+            // Визуальный отклик удара (можно расширить)
+        }
+
+        // Искусственный интеллект ДИО (Босс)
+        function updateBoss(dt) {
+            if (DIO.hp <= 0) {
+                gameActive = false;
+                document.getElementById('victory').style.display = 'flex';
+                return;
+            }
+
+            if (DIO.stun > 0) {
+                DIO.stun -= dt;
+                return;
+            }
+
+            // Плавное затухание инерции от нокбэка
+            DIO.x += DIO.vx * dt;
+            DIO.z += DIO.vz * dt;
+            DIO.vx *= 0.85;
+            DIO.vz *= 0.85;
+
+            const dist = Math.hypot(P.x - DIO.x, P.z - DIO.z);
+
+            // Поведение ДИО: преследование и атаки
+            if (dist > 2.0) {
+                const angle = Math.atan2(P.z - DIO.z, P.x - DIO.x);
+                DIO.x += Math.cos(angle) * 3.2 * dt;
+                DIO.z += Math.sin(angle) * 3.2 * dt;
+            } else {
+                // Атака игрока, если подошел близко
+                DIO.timer += dt;
+                if (DIO.timer > 1.2) {
+                    DIO.timer = 0;
+                    if (P.epitaphTimer > 0) {
+                        // Игрок уклонился с помощью Тайм-Эрейза
+                    } else if (P.block) {
+                        P.guard -= 20;
+                        if (P.guard <= 0) {
+                            P.guard = 0;
+                            P.stun = 1.0; // Пролом блока
+                        }
+                    } else {
+                        P.hp -= 18;
+                        P.stun = 0.3; // Стан игрока от удара босса
+                        if (P.hp <= 0) {
+                            gameActive = false;
+                            document.getElementById('defeat').style.display = 'flex';
+                        }
+                    }
+                }
+            }
+        }
+
+        // Главный игровой цикл
+        function animate() {
+            if (!gameActive) return;
+            requestAnimationFrame(animate);
+
+            const dt = clock.getDelta();
+
+            // Управление игроком
+            let moveSpeed = 5.0;
+            P.block = keys['KeyF'];
+
+            if (P.stun > 0) {
+                P.stun -= dt;
+            } else {
+                let dx = 0, dz = 0;
+                if (keys['KeyW']) dz -= 1;
+                if (keys['KeyS']) dz += 1;
+                if (keys['KeyA']) dx -= 1;
+                if (keys['KeyD']) dx += 1;
+
+                if (dx !== 0 || dz !== 0) {
+                    const len = Math.hypot(dx, dz);
+                    P.x += (dx / len) * moveSpeed * dt;
+                    P.z += (dz / len) * moveSpeed * dt;
+                }
+            }
+
+            // Инерция нокбэка игрока
+            P.x += P.vx * dt;
+            P.z += P.vz * dt;
+            P.vx *= 0.85;
+            P.vz *= 0.85;
+
+            // Таймеры
+            if (P.comboTimer > 0) P.comboTimer -= dt;
+            if (P.epitaphTimer > 0) P.epitaphTimer -= dt;
+
+            // Восстановление гарда, если не блочит
+            if (!P.block && P.guard < P.maxGuard) {
+                P.guard += 10 * dt;
+                if (P.guard > P.maxGuard) P.guard = P.maxGuard;
+            }
+
+            // Обновление положения моделей на сцене
+            if (player.mesh) {
+                player.mesh.position.set(P.x, 0, P.z);
+            }
+            if (boss.mesh) {
+                boss.mesh.position.set(DIO.x, 0, DIO.z);
+            }
+
+            // Логика босса
+            updateBoss(dt);
+
+            // Обновление HUD интерфейса
+            document.getElementById('hp-val').innerText = Math.max(0, Math.round(P.hp));
+            document.getElementById('hp-fill').style.width = Math.max(0, (P.hp / P.maxHp) * 100) + '%';
+            document.getElementById('guard-fill').style.width = Math.max(0, (P.guard / P.maxGuard) * 100) + '%';
+            
+            document.getElementById('boss-hp-val').innerText = Math.max(0, Math.round(DIO.hp));
+            document.getElementById('boss-hp-fill').style.width = Math.max(0, (DIO.hp / DIO.maxHp) * 100) + '%';
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
